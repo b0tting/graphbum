@@ -33,15 +33,14 @@ h = 320
 black = 0, 0, 0
 screenSize=(w,h)
 
+weather_api=""
+
 ## If not told better, assume we are in the Netherlands, the center of the world
 if not 'TZ' in os.environ:
 	os.environ['TZ'] = ':Europe/Amsterdam'; time.tzset()
 
 ## Cachedir for graph files, directory will be created if needed
 cacheDir = "/tmp/graphcache"
-
-## OpenWeatherMap URL for weather report
-weatherurl = "http://api.openweathermap.org/data/2.5/forecast?q=rijswijk,netherlands&units=metric&lang=nl&cnt=2"
 
 # Return true if both image and screen are the same size
 def matchSize(image, screen):
@@ -92,7 +91,7 @@ def resizeImage(image, height, width):
 
 def drawTimeDateOnImage(timage):
     ## Draw time on image Type some text on image
-    font = ImageFont.truetype("./ironman.ttf", 48)
+    font = ImageFont.truetype("/root/graphbum/ironman.ttf", 48)
     draw = ImageDraw.Draw(timage, 'RGBA')
     draw.rectangle((6,185,115, 314),fill=(0,0,0,100))
     draw.text((10, 235),strftime("%d / %m"),(255,255,255, 110),font=font)
@@ -105,11 +104,20 @@ def drawTimeDateOnImage(timage):
 
 
 def drawWeatherOnImage(image):
-	url = weatherurl
-	jsonraw =  urllib.urlopen(url).read()
+	url = "http://api.openweathermap.org/data/2.5/forecast?q=rijswijk,netherlands&units=metric&lang=nl&cnt=2&APPID=" + weather_api
+	jsonraw = None
+	while(jsonraw == None):
+		try:
+			jsonraw =  urllib.urlopen(url).read()
+	        except Exception as e:
+        		print("Got exception trying for weather info, will attempt again in 10 seconds")
+			print(e)
+        	        time.sleep(10)
 	result = json.loads(jsonraw)  # result is now a dict
 	icon0URL = 'http://openweathermap.org/img/w/' + result['list'][0]['weather'][0]['icon'] + '.png'
 	icon1URL = 'http://openweathermap.org/img/w/' + result['list'][1]['weather'][0]['icon'] + '.png'
+	print('http://www.algarexperience.com/static/images/weather/' + result['list'][0]['weather'][0]['icon'] + '.png')
+
 	icon0Image = fetchOrCache(icon0URL)
 	icon1Image = fetchOrCache(icon1URL)
 	image.paste(icon0Image, (5,190, 5 + icon0Image.size[0], 190 + icon0Image.size[1]), icon0Image)
@@ -120,6 +128,7 @@ def getCachedFileName(imgUrl):
        urlParsed = urlparse(imgUrl)
        baseFile = os.path.basename(urlParsed.path)
        return cacheDir + "/" + baseFile
+
 
 def cache(image, filename):
      cachedFile = getCachedFileName(filename)
@@ -140,7 +149,6 @@ def fetchOrCache(imgUrl, setTransparent = False):
 			time.sleep(10)
 	if times >= 5:
 		return None;
-
         image = Image.open(StringIO(imageStream.read()))
     else:
         image = Image.open(cacheFile)
@@ -183,7 +191,7 @@ def showImageOnScreen(fbPicture):
     surface.set_alpha(255)
     blitScreen(surface)
 
-    ## Linger in the beauty of our creation
+    ## Linger in the beauty of our product
     pygame.time.wait(1000 * IMAGE_PAUSE)
 
 
@@ -211,26 +219,32 @@ if len(sys.argv) >= 2:
 				time.sleep(5)
 
     
-app_secret = '2c8ca12fd86498eee1ff2c57791d7ab0'
-app_id = '1603614356580841'
+app_secret = ''
+app_id = ''
 
 # You'll need an access token here to do anything.  You can get a temporary one
 # here: https://developers.facebook.com/tools/explorer/
 
-## http://nodotcom.org/python-facebook-tutorial.html
-## Mijn long life token
-access_token = INSERT_TOKEN_HERE
+# Genereer een graphbum user token op die explorer URL
+# Daarna, vul die in achter deze URL
+#https://graph.facebook.com/oauth/access_token?client_id=&client_secret=&grant_type=fb_exchange_token&fb_exchange_token=
+
+token = ""
 
 
 ## My user id
-user = INSERT_FACEBOOK_USERID_HERE
 
-graph = facebook.GraphAPI(access_token)
-profile = graph.get_object(user)
-
-## Change these IDs to your own album ID
-albumID = INSERT_ALBUMID_HERE
-posts = graph.get_connections(albumID, 'photos')
+graph = facebook.GraphAPI(token)
+pat = False
+while True and not pat:
+	try:
+		pat = graph.get_object('115724255153018')['id']
+	except Error:
+		print("Failed to connect.. Trying again in some..")	
+		time.sleep(10)
+		
+print(pat)
+posts = graph.get_connections('115724255153018', 'photos')
 
 ## Init pygame screen and stuff
 pygame.init()
@@ -240,7 +254,7 @@ screen = pygame.display.set_mode(screenSize)
 if not os.path.isdir(cacheDir):
     os.makedirs(cacheDir)
 
-posts = fetchPosts(albumID)
+posts = fetchPosts('115724255153018')
 # Wrap this block in a while loop so we can keep paginating requests until
 # finished.
 while True:
@@ -252,5 +266,5 @@ while True:
         posts = requests.get(posts['paging']['next']).json()
     except KeyError:
         # When hell has no more pages the dead shall walk the earth
-        posts = fetchPosts(albumID)
+        posts = fetchPosts('115724255153018')
 
