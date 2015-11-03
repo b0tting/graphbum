@@ -1,5 +1,6 @@
 # graphbum
 A Raspberry PI PISCREEN based clock / photo slideshow / weather info app
+![Alt text](https://github.com/b0tting/graphbum/blob/master/screenshots/graphbum.jpg "App in action")
 
 A python script that displays all images from a specific facebook photo album. Features include a clock, date, location based weather information and fading between images. 
 
