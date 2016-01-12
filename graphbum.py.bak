@@ -1,0 +1,159 @@
+"""
+A simple example script to get all posts on a user's timeline.
+Originally created by Mitchell Stewart.
+<https://gist.github.com/mylsb/10294040>
+"""
+import facebook
+import requests
+import os
+import pygame
+import time
+import math
+from StringIO import StringIO
+from PIL import Image, ImageFont, ImageDraw, ImageFilter, ImageEnhance
+from urlparse import urlparse
+import urllib
+from pygame.locals import *
+
+os.environ['SDL_VIDEODRIVER'] = 'fbcon'
+os.environ["SDL_FBDEV"] = "/dev/fb1"
+##os.environ["SDL_MOUSEDEV"] = "/dev/input/touchscreen"
+##os.environ["SDL_MOUSEDRV"] = "TSLIB"
+
+cacheDir = "/tmp/graphcache"
+w = 480
+h = 320
+black = 0, 0, 0
+screenSize=(w,h)
+
+def matchSize(image, screen):
+    width, height = image.size
+    return width == screen[0] and  height == screen[1]
+
+## TODO: Eerst canvas aanvullen met zwarte randen
+def resizeImage(image, height, width):
+    ## First, get correct ratio
+    correct = height / width
+    
+    ## Then get current ratio
+    current = image.size[1] / image.size[0]
+    
+    ## Image is heigher then expected. Keep height, extend canvas width
+    if(current <> correct):
+
+	## Rezise image to newImage
+        if(current < correct):
+            newImage = Image.new(image.mode, (image.size[0],((image.size[0] * height) / width)))
+        elif current > correct:
+            newImage = Image.new(image.mode, (((image.size[1] * width) / height), image.size[1]))
+	
+	## Get a blurred version of original image 
+	bgImage = image.copy()
+	bgImage = bgImage.resize(newImage.size)
+	bgImage = bgImage.filter(ImageFilter.GaussianBlur(radius=20))
+	enhancer = ImageEnhance.Brightness(bgImage)
+	bgImage = enhancer.enhance(0.5)
+	newImage.paste(bgImage)
+
+	## Now copy original image back into this full size image
+        x1 = int(math.floor((newImage.size[0] - image.size[0]) / 2))
+        y1 = int(math.floor((newImage.size[1] - image.size[1]) / 2))
+        newImage.paste(image, (x1, y1, x1 +  image.size[0], y1 +  image.size[1]))
+
+	## Type some text on image
+	font = ImageFont.truetype("Xoxoxa.ttf", 48)
+	draw = ImageDraw.Draw(newImage)
+	draw.text((0, 0),"Org width, height = " + str(image.size[0]) + ", " + str(image.size[1]) + " and new " + str(newImage.size[0]) + ", " + str(newImage.size[1]),(255,255,255),font=font)
+
+	## Done!
+	image = newImage
+	  
+    return image.resize((width, height), Image.ANTIALIAS)
+
+def getCachedFileName(imgUrl):
+       urlParsed = urlparse(imgUrl)
+       baseFile = os.path.basename(urlParsed.path)
+       return cacheDir + "/" + baseFile
+
+
+def cache(image, filename):
+     cachedFile = getCachedFileName(filename)
+     image.save(cachedFile, "JPEG")
+    
+
+def fetchOrCache(imgUrl):
+    cacheFile = getCachedFileName(imgUrl);
+    if(not os.path.isfile(cacheFile)):
+        imageStream = urllib.urlopen(imgUrl)
+        image = Image.open(StringIO(imageStream.read()))
+    else:
+        image = Image.open(cacheFile)
+    cache(image, imgUrl)
+    return image;
+
+
+def some_action(post):
+    """ Here you might want to do something with each post. E.g. grab the
+    post's message (post['message']) or the post's picture (post['picture']).
+    In this implementation we just print the post's created time.
+    """
+    source = post['source']
+    image = fetchOrCache(source)
+    if(not matchSize(image, screenSize)):
+        image = resizeImage(image, h, w)
+        cache(image, os.path.basename(source))
+
+    mode = image.mode
+    size = image.size
+    data = image.tostring()
+
+    assert mode in "RGB", "RGBA"
+    surface = pygame.image.fromstring(data, size, mode)
+    surfaceRect = surface.get_rect()
+    screen = pygame.display.set_mode(screenSize)
+    screen.fill(black)
+    screen.blit(surface, surfaceRect)
+    pygame.display.flip()
+    time.sleep(15)
+
+    
+app_secret = '2c8ca12fd86498eee1ff2c57791d7ab0'
+app_id = '1603614356580841'
+
+# You'll need an access token here to do anything.  You can get a temporary one
+# here: https://developers.facebook.com/tools/explorer/
+#access_token = 'CAACEdEose0cBAOZBmwqD4ZCnmsZCsy6x5sDVgZAAwQDlaHEiCnhdQZBZCJZA0HP0eSDy02q56EZBKBcuT6E1X2Kd1Uomq3paiyHBYLeWAFe5Nto2ZB9t7jUp0IesETbVocwebzG9IgC3XuCNPiIoNVNYomt4nqIZApSWroZCm4M3TVYMaUUoZBFvVhLw8MYsM6HDvjZAVF83bHQIk12rTmYBEKKfdQAogwZAGZBrD8ZD'
+
+#access_token = facebook.get_app_access_token(app_id, app_secret);
+
+## http://nodotcom.org/python-facebook-tutorial.html
+## Mijn long life token
+access_token = 'CAAWyepAUqekBAMlNOrhVKifaRuriK4ZCXUkyionsXv9YQRFvEJoa6cA1G4kFmRgCsOeI5mqiVkuF0UPZB6YNleY0URaUXHDZCVZAYCrGyHCp0GSZB2ppdKPt5BKLxnKWcizgO0wSC5EQcmfD0IMjUGB0FxpAkRcTf67iWPEQOLPkJsMX0cuYtcbGEXxJgnViAzyrh0u0m7Op6knTu48Vp'
+
+
+## My user id
+user = "100001463337018"
+
+graph = facebook.GraphAPI(access_token)
+profile = graph.get_object(user)
+posts = graph.get_connections('115724255153018', 'photos')
+
+pygame.init()
+DISPLAYSURF = pygame.display.set_mode((480, 320))
+
+if not os.path.isdir(cacheDir):
+    os.makedirs(cacheDir)
+
+# Wrap this block in a while loop so we can keep paginating requests until
+# finished.
+while True:
+    try:
+        # Perform some action on each post in the collection we receive from
+        # Facebook.
+        [some_action(post=post) for post in posts['data']]
+        # Attempt to make a request to the next page of data, if it exists.
+        posts = requests.get(posts['paging']['next']).json()
+    except KeyError:
+        # When there are no more pages (['paging']['next']), break from the
+        # loop and end the script.
+        break

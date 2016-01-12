@@ -227,7 +227,6 @@ app_id = ''
 
 # Genereer een graphbum user token op die explorer URL
 # Daarna, vul die in achter deze URL
-#https://graph.facebook.com/oauth/access_token?client_id=&client_secret=&grant_type=fb_exchange_token&fb_exchange_token=
 
 token = ""
 
